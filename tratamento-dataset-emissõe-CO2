@@ -1,0 +1,270 @@
+Este arquivo contém todos os tratamentos realizados com o dataset relativo às emissões de CO2 (ton/ano) -  fonte www.kaggle.com
+utilizado no Projeto Final de Engenharia de Dados c/ Python e Google Cloud da Soul Code Academy
+feito e entregue pelo Grupo 5
+
+##PANDAS
+
+Instalação do pacote gcsfs para acesso de arquivos direto do GCStorage 
+
+pip install gcsfs
+
+Instalação do pacote Pandera para validação de dados
+
+pip install pandera
+
+Importação de biblioteca para autenticação da service account e uso dos arquivos do bucket GCP
+
+import os
+
+Foi criada uma conta de serviço relacionada ao Bucket do CloudStorage bem como uma chave para interação entre as ferramentas. A seguir o arquivo de chave da conta de servico é atribuida a variável serviceAccount.
+
+serviceAccount ='/content/chave-projeto-g5.json'
+
+os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = serviceAccount
+
+Importação de bibliotecas a serem utilizadas na etapa de tratamento pandas/pandera.
+
+import pandas as pd
+import pandera as pa
+from google.cloud import storage
+
+
+Leitura do arquivo CSV utilizando o URI do arquivo no bucket.
+
+df = pd.read_csv('gs://projeto-final-bucket-g5/entrada/Emissao_CO2_pais.csv')
+df
+
+#verificação do tipo do dado
+df.dtypes
+
+#função pd.unique sendo utilizada para verificarmos as lista de países(Entity)
+pd.unique(df['Entity'])
+
+Utilizando a função pd.unique verificamos que alguns paises não são de interesse para o propósito da análise ou apresentam divergências.
+
+* As linhas referentes seguintes países/territórios serão excluidas:
+
+[Africa, Americas (other), Antarctic Fisheries', 'Asia and Pacific (other)', 'Bonaire Sint Eustatius and Saba','Bermuda','Brunei', 'EU-28','Cook Islands', 'Europe (other)', 'Gibraltar', 'International transport', 'Kyrgysztan', 'Middle East', 'Maldives', 'Marshall Islands', 'Nauru', 'Saint Helena', 'Saint Pierre and Miquelon', 'Sint Maarten (Dutch part)', 'Statistical differences', 'South Sudan', 'Tuvalu',  'Vanuatu', 'Wallis and Futuna Islands', 'World','Czechoslovakia'.
+
+* Os paises com os seguintes nomes terão nomes ajustados para alinhar com o outro dataset: 
+
+['Timor'= 'Timor leste'
+'Antarctic Fisheries'  = 'Antarctic'
+'Faeroe Islands = 'Faroe Islands'
+'Falkland Islands', = 'Islas Malvinas'
+'Micronesia (country)' = 'Micronesia' 
+'Democratic Republic of Republic of the Congo'	 = 'Democratic Republic of the Congo'
+'Republic of the Congo' = 'Congo']
+
+len(df['Entity'].unique())
+
+Realização de Backup
+
+#definição de um fataframe de backup
+df_backup = df.copy()
+
+df_backup
+
+Tradução de colunas
+
+(df.rename(columns={'Entity': 'País', 'Code': 'Código', 
+                       'Year': 'Ano', 'Annual CO₂ emissions (tonnes )': 'Emissão CO₂ (ton/ano)'}
+                        , inplace=True))
+
+Eliminando linhas relacionadas a datas superiores a 2012. Tal tratamento foi feito analisando o outro dataset (Temperatura média), a fim de igualar os períodos de tempo entre os conjunto de dados.
+
+filtro_anomax = df.Ano <= 2012
+
+df = df.loc[filtro_anomax]
+
+Verificação dados nulos
+
+df.isna().sum()
+
+#conferindo inconsistências
+pd.unique(df['Código'])
+
+#vizualizando os valores NaN
+filter = df['Código'].isna()
+df.loc[filter]
+
+Após conferir lista de países entre os bancos de dados a serem analisados, foram feitas as exclusões de linhas referentes aos países não relevantes.
+
+df.drop(df[(df['País'] == 'Africa')].index, inplace=True)
+df.drop(df[(df['País'] == 'Americas (other)')].index, inplace=True)
+df.drop(df[(df['País'] == 'Asia and Pacific (other)')].index, inplace=True)
+df.drop(df[(df['País'] == 'Bonaire Sint Eustatius and Saba')].index, inplace=True)
+df.drop(df[(df['País'] == 'Bermuda')].index, inplace=True)
+df.drop(df[(df['País'] == 'Brunei')].index, inplace=True)
+df.drop(df[(df['País'] == 'EU-28')].index, inplace=True)
+df.drop(df[(df['País'] == 'Europe (other)')].index, inplace=True)
+df.drop(df[(df['País'] == 'Cook Islands')].index, inplace=True)
+df.drop(df[(df['País'] == 'Gibraltar')].index, inplace=True)
+df.drop(df[(df['País'] == 'International transport')].index, inplace=True)
+df.drop(df[(df['País'] == 'Kyrgysztan')].index, inplace=True)
+df.drop(df[(df['País'] == 'Middle East')].index, inplace=True)
+df.drop(df[(df['País'] == 'Maldives')].index, inplace=True)
+df.drop(df[(df['País'] == 'Marshall Islands')].index, inplace=True)
+df.drop(df[(df['País'] == 'Nauru')].index, inplace=True)
+df.drop(df[(df['País'] == 'Saint Helena')].index, inplace=True)
+df.drop(df[(df['País'] == 'Saint Pierre and Miquelon')].index, inplace=True)
+df.drop(df[(df['País'] == 'Sint Maarten (Dutch part)')].index, inplace=True)
+df.drop(df[(df['País'] == 'Statistical differences')].index, inplace=True)
+df.drop(df[(df['País'] == 'South Sudan')].index, inplace=True)
+df.drop(df[(df['País'] == 'Tuvalu')].index, inplace=True)
+df.drop(df[(df['País'] == 'Vanuatu')].index, inplace=True)
+df.drop(df[(df['País'] == 'Wallis and Futuna Islands')].index, inplace=True)
+df.drop(df[(df['País'] == 'Czechoslovakia')].index, inplace=True)
+df.drop(df[(df['País'] == 'World')].index, inplace=True)
+
+Existem 21 valores nulos na coluna de código, e são referentes ao território da Antartica. Como o dataset de variação de temperatura não apresenta medições para este território, preferiu-se eliminar também aqui.
+
+df.isna().sum()
+
+df.drop(df[(df['País'] == 'Antarctic Fisheries')].index, inplace=True)
+
+#filtro utilizado para verificar se as mudanças foram efetuadas
+filtro=df.País=='Antarctic Fisheries'
+df.loc[filtro]
+
+Alteração de nomes de países para futuramente realizar operações utilizando joins.
+
+df.loc[df['País'] == 'Timor' , ['País']] = 'Timor Leste'
+df.loc[df['País'] == 'Republic of the Congo' , ['País']] = 'Congo'
+df.loc[df['País'] == 'Faeroe Islands' , ['País']] = 'Faroe Islands'
+df.loc[df['País'] == 'Falkland Islands' , ['País']] = 'Islas Malvinas'
+df.loc[df['País'] == 'Micronesia (country)' , ['País']] = 'Micronesia'
+df.loc[df['País'] == 'Congo (Democratic Republic of the)' , ['País']] = 'Democratic Republic of the Congo'
+
+
+pd.unique(df['País'])
+
+Importação do arquivo em formato CSV para o bucket
+
+client=storage.Client()
+#a variável bucket recebe o nome do bucket do cloud storage
+bucket=client.get_bucket('projeto-final-bucket-g5')
+#caminho de destino, pasta saída, o qual será salvo o arquivo em formato csv
+bucket.blob('saida/df_emissoes_pandas_tratamento1.csv').upload_from_string(df.to_csv(index=False), 'text/cvs')
+
+O arquivo a cima foi salvo no intuito de utilizar a ferramenta DataPrep para ter uma melhor vizualização dos dados e assim continuar com os tratamentos necessarios.
+
+* Foram analisados os valores de emissão de CO2 e de Temperatura (no dataset de temperatura) e definido um intervalo de anos a serem analisados (1900 - 2012).
+
+#Definição do intervalo após ano de 1900
+filtro_anomin = df.Ano >= 1900
+df=df.loc[filtro_anomin]
+
+Validação com Pandera
+
+#construção da base de comparação para validação
+schema = pa.DataFrameSchema(
+    columns = {  
+        "País":pa.Column(pa.String),
+        "Código":pa.Column(pa.String,pa.Check.str_length(3,3), nullable=True),
+        "Ano":pa.Column(pa.Int),
+        "Emissão CO₂ (ton/ano)":pa.Column(pa.Float, nullable=True)
+        }
+)
+
+schema.validate(df)
+
+Arquivo salvo diretamento para o Bucket (Data Lake) da Google Cloud Storage.
+
+client=storage.Client()
+bucket=client.get_bucket('projeto-final-bucket-g5')
+bucket.blob('saida/df_emissoes_pandas_tratado_final.csv').upload_from_string(df.to_csv(index=False), 'text/cvs')
+
+##PYSPARK
+
+Instalação da pacote Pyspark
+
+!pip install pyspark
+
+Importação de módulos e de funções específicas dentro da biblioteca Pyspark
+
+from pyspark.sql import SparkSession
+#ParkSession é uma string de conexão, na qual serão definidos os devidos parâmetros
+import pyspark.sql.functions as F
+#importação da biblioteca de funções do pacote spark atribuindo F para o uso durante o código
+from pyspark.sql.types import StructType,StructField, StringType, IntegerType, FloatType, DoubleType, DateType, ArrayType, DoubleType, BooleanType
+#importação dos tipos de variaveis para futura estruturação e validação
+from pyspark.sql.functions import col,array_contains
+from pyspark.sql.window import Window
+#importação de funções do tipo window
+
+Configurando a SparkSession
+
+spark = SparkSession.builder\
+        .master("local")\ #master: local, cluester, ou local onde irá rodar a sessão
+        .appName("dataframe_emissoes")\#identificaçao do aplicação a ser criad
+        .config("spark.ui.port","4050")\#configurção via API com apache spark, e definção da porta UI, que no caso do colab é 4050
+        .getOrCreate()#iniciar a sessão
+
+Criando o Esquema/Schema com a função StructType, usando o dataframe já criado na etapa do Pandas. Aqui, apesar da validação feita anteriormente, é interessante o uso do StructType para grantir os tipos das variáveis no momento da criação do dataframe no pyspark, assim a efetuação de calculos e manipulações corretamente.
+
+schema = StructType() \
+      .add("País",StringType(),False) \
+      .add("Código", StringType(), True) \
+      .add("Ano", IntegerType(), False) \
+      .add("Emissão CO₂ (ton/ano)", FloatType(), True)     
+   
+
+dfCO2_spark = spark.createDataFrame(df, schema=schema)
+#aqui o df da etapa anterior foi passado como parâmetro de dados
+dfCO2_spark.printSchema()
+
+dfCO2_spark.show()
+
+A célula abaixo é responsável pela criação da coluna Diferença Emissões (ton), a qual é preenchida com a função de janela 'lag', que preenche cada elemento fazendo a diferença da emissão de CO2 do ano seguinte em relação ao ano anterior. 
+
+lag_window = Window.partitionBy('País').orderBy('País','Ano')
+#criação do que chamamos de window, que é uma partição dos dados a qual será submetida ao uso da função 'lag' para criação da coluna de Diferença Emissções (ton)
+
+dfCO2_spark = (
+        dfCO2_spark.select('País', 'Código','Ano', 'Emissão CO₂ (ton/ano)')
+        .withColumn('Diferenca Emissões(ton)', F.col('Emissão CO₂ (ton/ano)') - F.lag('Emissão CO₂ (ton/ano)')
+        .over(lag_window))
+)
+dfCO2_spark.show()
+
+Salvando o arquivo no Google Drive
+
+dfCO2_spark.write.format("csv") \
+.option("header", "true") \
+.option("inferschema", "true") \
+.option("delimiter", ",") \
+.save("/content/drive/MyDrive/dados_soulcode/dfCO2.csv")
+
+Montagem da pasta /drive para poder acessar a pasta /MyDrive, onde o arquivo 
+com o dataframe tratado com pyspark estava salvo.
+
+from google.colab import drive
+drive.mount('/content/drive')
+
+Definição de função, para poder salvar o arquivo pyspark diretamente para o Bucket/Data Lake, utilizando como intermédio o ambiente do drive
+
+def upload_blob(bucket_name, source_file_name, destination_blob_name):
+    """Uploads a file to the bucket."""
+    # The ID of your GCS bucket
+    # bucket_name = "your-bucket-name"
+    # The path to your file to upload
+    # source_file_name = "local/path/to/file"
+    # The ID of your GCS object
+    # destination_blob_name = "storage-object-name"
+
+    storage_client = storage.Client()
+    bucket = storage_client.bucket(bucket_name)
+    blob = bucket.blob(destination_blob_name)
+
+    blob.upload_from_filename(source_file_name)
+
+    print(
+        "File {} uploaded to {}.".format(
+            source_file_name, destination_blob_name
+        )
+    )
+
+Arquivo salvo no Bucket/Data Lake:
+
+upload_blob("projeto-final-bucket-g5", "/content/drive/MyDrive/dados_soulcode/dfCO2.csv/dfCO2pyspark.csv", "saida/df_sparkCO2_emissoes_pyspark_final.csv")
