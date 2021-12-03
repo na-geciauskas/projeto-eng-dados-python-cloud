@@ -1,0 +1,387 @@
+Este arquivo contém todos os tratamentos realizados com o dataset relativo à area de cobertura florestal entre 1990 e 2015 no planeta,
+utilizado no Projeto Final de Engenharia de Dados c/ Python e Google Cloud da Soul Code Academy
+feito e entregue pelo Grupo 5
+
+
+Instalação do pacote gcsfs para acesso de arquivos direto do GCStorage
+
+pip install gcsfs
+
+Instalação do pacote Pandera para validação de dados
+
+pip install pandera
+
+Importação de biblioteca para autenticação da service account e uso dos arquivos do bucket GCP
+
+import os
+
+Foi criada uma conta de serviço relacionada ao Bucket do CloudStorage bem como uma chave para interação entre as ferramentas. A seguir o arquivo de chave da conta de servico é atribuida a variável serviceAccount.
+
+serviceAccount ='/content/chave-projeto-g5.json'
+
+os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = serviceAccount
+
+Importação de bibliotecas a serem utilizadas na etapa de tratamento pandas/pandera.
+
+import pandas as pd
+import pandera as pa
+from google.cloud import storage
+
+Leitura do arquivo .xlsx utilizando o URI do arquivo no bucket.
+
+df = pd.read_excel('gs://projeto-final-bucket-g5/entrada/Forest_extent_characteristics_changes.xlsx', sheet_name="1a_Forest", header = [4])
+df
+
+df.dtypes
+
+df.drop(['Unnamed: 2', 'Unnamed: 3', 'Unnamed: 4', 2020, 'Unnamed: 6', '2020.1', 'Unnamed: 8', '2020.2', 'Unnamed: 10', 'Unnamed: 11'], axis=1, inplace=True)
+
+df_backup = df.copy()
+
+df.dtypes
+
+(df.rename(columns={'Unnamed: 0': 'Codigo', 'Unnamed: 1': 'Pais', 
+                    1990: 'AreaFlorestal_1990(1000ha)', 2000: 'AreaFlorestal_2000(1000ha)',                    
+                    2010: 'AreaFlorestal_2010(1000ha)', 2015: 'AreaFlorestal_2015(1000ha)',
+                    '2020.3': 'AreaFlorestal_2020(1000ha)', '90-00': 'Variacao_1990-2000',
+                    '90-10': 'Variacao_1990-2010', '90-15': 'Variacao_1990-2015',
+                    '90-20': 'Variacao_1990-2020', '00-10': 'Variacao_2000-2010',
+                    '00-15': 'Variacao_2000-2015', '00-20': 'Variacao_2000-2020', 
+                    '10-15': 'Variacao_2010-2015', '10-20': 'Variacao_2010-2020',
+                    '15-20': 'Variacao_2015-2020', '90-00.1': 'VarPercentual_1990-2000',
+                    '90-10.1': 'VarPercentual_1990-2010', '90-15.1': 'VarPercentual_1990-2015', 
+                    '90-20.1': 'VarPercentual_1990-2020', '00-10.1': 'VarPercentual_2000-2010',
+                    '00-15.1': 'VarPercentual_2000-2015', '00-20.1': 'VarPercentual_2000-2020',
+                    '10-15.1': 'VarPercentual_2010-2015', '10-20.1': 'VarPercentual_2010-2020', 
+                    '15-20.1': 'VarPercentual_2015-2020'
+                       }
+                        , inplace=True))
+
+df.dtypes
+
+pd.unique(df['Pais'])
+
+len(df['Pais'].unique())
+
+Excluindo linhas contendo dados sobre regiões e Mundo(total)
+
+df.drop(df[(df['Pais'] == 'South America')].index, inplace=True)
+df.drop(df[(df['Pais'] == 'World')].index, inplace=True)
+df.drop(df[(df['Pais'] == 'Africa')].index, inplace=True)
+df.drop(df[(df['Pais'] == 'Asia')].index, inplace=True)
+df.drop(df[(df['Pais'] == 'North and Central America')].index, inplace=True)
+df.drop(df[(df['Pais'] == 'Central America')].index, inplace=True)
+df.drop(df[(df['Pais'] == 'Oceania')].index, inplace=True)
+df.drop(df[(df['Pais'] == 'Europe')].index, inplace=True)
+df.drop(df[(df['Pais'] == 'Western and Central Asia')].index, inplace=True)
+df.drop(df[(df['Pais'] == 'South and Southeast Asia')].index, inplace=True)
+df.drop(df[(df['Pais'] == 'Western and Central Africa')].index, inplace=True)
+df.drop(df[(df['Pais'] == 'Eastern and Southern Africa')].index, inplace=True)
+
+df.drop(df[(df['Pais'] == 'Northern Africa')].index, inplace=True)
+df.drop(df[(df['Pais'] == 'East Asia')].index, inplace=True)
+df.drop(df[(df['Pais'] == 'Caribbean')].index, inplace=True)
+df.drop(df[(df['Pais'] == 'North America')].index, inplace=True) 
+
+Excluindo linhas contendo dados sobre países que não se encontram na lista de países das outras tabelas
+
+df.drop(df[(df['Pais'] == 'Mayotte')].index, inplace=True)
+df.drop(df[(df['Pais'] == 'South Sudan')].index, inplace=True)
+df.drop(df[(df['Pais'] == 'Guernsey')].index, inplace=True)
+df.drop(df[(df['Pais'] == 'Holy See')].index, inplace=True)
+df.drop(df[(df['Pais'] == 'Jersey')].index, inplace=True)
+df.drop(df[(df['Pais'] == 'Monaco')].index, inplace=True)
+df.drop(df[(df['Pais'] == 'San Marino')].index, inplace=True)
+df.drop(df[(df['Pais'] == 'Svalbard and Jan Mayen Islands')].index, inplace=True)
+df.drop(df[(df['Pais'] == 'Saint Martin (French part)')].index, inplace=True)
+df.drop(df[(df['Pais'] == 'Saint Barthélemy')].index, inplace=True)
+df.drop(df[(df['Pais'] == 'Sint Maarten (Dutch part)')].index, inplace=True)
+df.drop(df[(df['Pais'] == 'United States Virgin Islands')].index, inplace=True)
+df.drop(df[(df['Pais'] == 'American Samoa')].index, inplace=True)
+df.drop(df[(df['Pais'] == 'Bonaire, Sint Eustatius and Saba')].index, inplace=True)
+df.drop(df[(df['Pais'] == 'Cook Islands')].index, inplace=True)
+df.drop(df[(df['Pais'] == 'Guam')].index, inplace=True)
+df.drop(df[(df['Pais'] == 'Norfolk Island')].index, inplace=True)
+df.drop(df[(df['Pais'] == 'Pitcairn Islands')].index, inplace=True)
+df.drop(df[(df['Pais'] == 'Tokelau')].index, inplace=True)
+df.drop(df[(df['Pais'] == 'Wallis and Futuna Islands')].index, inplace=True)
+df.drop(df[(df['Pais'] == 'Bermuda')].index, inplace=True)
+df.drop(df[(df['Pais'] == 'Brunei Darussalam')].index, inplace=True)
+df.drop(df[(df['Pais'] == 'Gibraltar')].index, inplace=True)
+df.drop(df[(df['Pais'] == 'Maldives')].index, inplace=True)
+df.drop(df[(df['Pais'] == 'Marshall Islands')].index, inplace=True)
+df.drop(df[(df['Pais'] == 'Nauru')].index, inplace=True)
+df.drop(df[(df['Pais'] == 'Saint Helena, Ascension and Tristan da Cunha')].index, inplace=True)
+df.drop(df[(df['Pais'] == 'Saint Pierre and Miquelon')].index, inplace=True)
+df.drop(df[(df['Pais'] == 'Sint Maarten (Dutch part)')].index, inplace=True)
+df.drop(df[(df['Pais'] == 'South Sudan')].index, inplace=True)
+df.drop(df[(df['Pais'] == 'Tuvalu')].index, inplace=True)
+df.drop(df[(df['Pais'] == 'Vanuatu')].index, inplace=True)
+df.drop(df[(df['Pais'] == 'Wallis and Futuna Islands')].index, inplace=True)
+df.drop(df[(df['Pais'] == 'Western Sahara')].index, inplace=True)
+df.drop(df[(df['Pais'] == 'Northern Mariana Islands')].index, inplace=True)
+df.drop(df[(df['Pais'] == 'Isle of Man')].index, inplace=True)
+
+df.isna().sum()
+
+#vizualizando os valores NaN
+filter = df['VarPercentual_1990-2020'].isna()
+df.loc[filter]
+
+Alteração de nomes de países para futuramente usar tal coluna para operações utilizando joins.
+
+df.loc[df['Pais'] == "Réunion" , ["Pais"]] = "Reunion"
+df.loc[df['Pais'] == "United Republic of Tanzania" , ["Pais"]] = "Tanzania"
+df.loc[df['Pais'] == "Cabo Verde" , ["Pais"]] = "Cape Verde"
+df.loc[df['Pais'] == "Falkland Islands (Malvinas)" , ["Pais"]] = "Islas Malvinas"
+df.loc[df['Pais'] == "Côte d'Ivoire" , ["Pais"]] = "Cote d'Ivoire"
+df.loc[df['Pais'] == "Democratic People's Republic of Korea" , ["Pais"]] = "North Korea"
+df.loc[df['Pais'] == "Republic of Korea" , ["Pais"]] = "South Korea"
+df.loc[df['Pais'] == "Lao People's Democratic Republic" , ["Pais"]] = "Laos"
+df.loc[df['Pais'] == "Cabo Verde" , ["Pais"]] = "Cape Verde"
+df.loc[df['Pais'] == "Timor-Leste" , ["Pais"]] = "Timor Leste"
+df.loc[df['Pais'] == "Vietnam" , ["Pais"]] = "Cote d'Ivoire"
+df.loc[df['Pais'] == "Iran (Islamic Republic of)" , ["Pais"]] = "Iran"
+df.loc[df['Pais'] == "Syrian Arab Republic" , ["Pais"]] = "Syria"
+df.loc[df['Pais'] == "Czechia" , ["Pais"]] = "Czech Republic"
+df.loc[df['Pais'] == "North Macedonia" , ["Pais"]] = "Macedonia"
+df.loc[df['Pais'] == "Republic of Moldova" , ["Pais"]] = "Moldova"
+df.loc[df['Pais'] == "Russian Federation" , ["Pais"]] = "Russia"
+df.loc[df['Pais'] == "Curaçao" , ["Pais"]] = "Curacao"
+df.loc[df['Pais'] == "Micronesia (Federated States of)" , ["Pais"]] = "Micronesia"
+df.loc[df['Pais'] == "Venezuela (Bolivarian Republic of)" , ["Pais"]] = "Venezuela"
+df.loc[df['Pais'] == "Bolivia (plurinational state of)" , ["Pais"]] = "Bolivia"
+
+#vizualizando os valores zerados de Área florestal
+filtro0 = df['AreaFlorestal_1990(1000ha)'] == 0
+df.loc[filtro0]
+
+Validação com Pandera
+
+#construção da base de comparação para validação
+schema = pa.DataFrameSchema(
+    columns = {  
+        "Codigo":pa.Column(pa.String,pa.Check.str_length(3,3)),
+        "Pais":pa.Column(pa.String),
+        "AreaFlorestal_1990(1000ha)":pa.Column(pa.Float, nullable=True),
+        "AreaFlorestal_2000(1000ha)":pa.Column(pa.Float, nullable=True),
+        "AreaFlorestal_2010(1000ha)":pa.Column(pa.Float, nullable=True),
+        "AreaFlorestal_2015(1000ha)":pa.Column(pa.Float, nullable=True),
+        "AreaFlorestal_2020(1000ha)":pa.Column(pa.Float, nullable=True),
+        "Variacao_1990-2000":pa.Column(pa.Float, nullable=True),
+        "Variacao_1990-2010":pa.Column(pa.Float, nullable=True),
+        "Variacao_1990-2015":pa.Column(pa.Float, nullable=True),
+        "Variacao_1990-2020":pa.Column(pa.Float, nullable=True),
+        "Variacao_2000-2010":pa.Column(pa.Float, nullable=True),
+        "Variacao_2000-2015":pa.Column(pa.Float, nullable=True),
+        "Variacao_2000-2020":pa.Column(pa.Float, nullable=True),
+        "Variacao_2010-2015":pa.Column(pa.Float, nullable=True),
+        "Variacao_2010-2020":pa.Column(pa.Float, nullable=True),
+        "Variacao_2015-2020":pa.Column(pa.Float, nullable=True),
+        "VarPercentual_1990-2000":pa.Column(pa.Float, nullable=True),
+        "VarPercentual_1990-2010":pa.Column(pa.Float, nullable=True),
+        "VarPercentual_1990-2015":pa.Column(pa.Float, nullable=True),
+        "VarPercentual_1990-2020":pa.Column(pa.Float, nullable=True),
+        "VarPercentual_2000-2010":pa.Column(pa.Float, nullable=True),
+        "VarPercentual_2000-2015":pa.Column(pa.Float, nullable=True),
+        "VarPercentual_2000-2020":pa.Column(pa.Float, nullable=True),
+        "VarPercentual_2010-2015":pa.Column(pa.Float, nullable=True),
+        "VarPercentual_2010-2020":pa.Column(pa.Float, nullable=True),
+        "VarPercentual_2015-2020":pa.Column(pa.Float, nullable=True)
+        }
+)
+
+schema.validate(df)
+
+Arquivo salvo diretamento para o Bucket (Data Lake) da Google Cloud Storage.
+
+client=storage.Client()
+bucket=client.get_bucket('projeto-final-bucket-g5')
+bucket.blob('saida/df_coberturaflorestal_pandas_tratado.csv').upload_from_string(df.to_csv(index=False), 'text/cvs')
+
+Instalação da biblioteca Pyspark
+
+!pip install pyspark
+
+Importação de módulos e de funções específicas dentro da biblioteca Pyspark
+
+from pyspark.sql import SparkSession
+import pyspark.sql.functions as F 
+from pyspark.sql.types import StructType,StructField, StringType, IntegerType, FloatType, DoubleType, DateType 
+from pyspark.sql.types import ArrayType, DoubleType, BooleanType
+from pyspark.sql.functions import col,array_contains
+from pyspark.sql.window import Window
+from pyspark.sql.functions import when
+
+
+Configurando a SparkSession
+
+spark = SparkSession.builder\
+        .master("local")\
+        .appName("dataframe_coberturaflorestal")\
+        .config("spark.ui.port","4050")\
+        .getOrCreate()
+
+Criando o Esquema/Schema com a função StructType, usando o dataframe já driado na etapa de transformação com Pandas
+
+schema = StructType() \
+      .add("Codigo", StringType(), False) \
+      .add("Pais", StringType(), False) \
+      .add("AreaFlorestal_1990(1000ha)", FloatType(), True) \
+      .add("AreaFlorestal_2000(1000ha)", FloatType(), True) \
+      .add("AreaFlorestal_2010(1000ha)", FloatType(), True) \
+      .add("AreaFlorestal_2015(1000ha)", FloatType(), True) \
+      .add("AreaFlorestal_2020(1000ha)", FloatType(), True) \
+      .add("Variacao_1990-2000", FloatType(), True) \
+      .add("Variacao_1990-2010", FloatType(), True) \
+      .add("Variacao_1990-2015", FloatType(), True) \
+      .add("Variacao_1990-2020", FloatType(), True) \
+      .add("Variacao_2000-2010", FloatType(), True) \
+      .add("Variacao_2000-2015",FloatType(), True) \
+      .add("Variacao_2000-2020", FloatType(), True) \
+      .add("Variacao_2010-2015", FloatType(), True) \
+      .add("Variacao_2010-2020",FloatType(), True) \
+      .add("Variacao_2015-2020", FloatType(), True) \
+      .add("VarPercentual_1990-2000", FloatType(), True) \
+      .add("VarPercentual_1990-2010",FloatType(), True) \
+      .add("VarPercentual_1990-2015", FloatType(), True) \
+      .add("VarPercentual_1990-2020", FloatType(), True) \
+      .add("VarPercentual_2000-2010",FloatType(), True) \
+      .add("VarPercentual_2000-2015", FloatType(), True) \
+      .add("VarPercentual_2000-2020", FloatType(), True) \
+      .add("VarPercentual_2010-2015",FloatType(), True) \
+      .add("VarPercentual_2010-2020", FloatType(), True) \
+      .add("VarPercentual_2015-2020", FloatType(), True)    
+
+df_cflorestal_spark = spark.createDataFrame(df, schema=schema)
+
+df_cflorestal_spark.printSchema()
+
+df_cflorestal_spark.show(5)
+
+df_cflorestal_spark.filter(F.col('Pais') == 'Brazil').show()
+
+def upload_blob(bucket_name, source_file_name, destination_blob_name):
+    """Uploads a file to the bucket."""
+    # The ID of your GCS bucket
+    # bucket_name = "your-bucket-name"
+    # The path to your file to upload
+    # source_file_name = "local/path/to/file"
+    # The ID of your GCS object
+    # destination_blob_name = "storage-object-name"
+
+    storage_client = storage.Client()
+    bucket = storage_client.bucket(bucket_name)
+    blob = bucket.blob(destination_blob_name)
+
+    blob.upload_from_filename(source_file_name)
+
+    print(
+        "File {} uploaded to {}.".format(
+            source_file_name, destination_blob_name
+        )
+    )
+
+from google.colab import drive
+drive.mount('/content/drive')
+
+df_cflorestal_spark.write.format("csv") \
+.option("header", "true") \
+.option("inferschema", "true") \
+.option("delimiter", ",") \
+.save("/content/drive/MyDrive/dados_soulcode/df_cflorestal")
+
+upload_blob("projeto-final-bucket-g5", "/content/drive/MyDrive/dados_soulcode/df_cflorestal/df_cflorestal_spark_tratado.csv", "saida/df_cflorestal_pyspark_final.csv")
+
+Definição de listas de países por continente para criação de nova coluna
+
+
+africa = ['Algeria', 'Angola', 'Benin', 'Botswana', 'Burkina Faso', 'Burundi', 'Cameroon', 'Cape Verde', 
+          'Central African Republic', 'Chad', 'Comoros', 'Congo', 'Democratic Republic of the Congo', "Cote d'Ivoire", 
+          'Djibouti', 'Egypt', 'Equatorial Guinea', 'Eritrea', 'Eswatini', 'Ethiopia', 'Gabon', 'Gambia', 'Ghana', 'Guinea', 
+          'Guinea-Bissau', 'Kenya', 'Lesotho', 'Liberia', 'Libya', 'Madagascar', 'Malawi', 'Mali', 'Mauritania', 
+          'Mauritius', 'Morocco', 'Mozambique', 'Namibia', 'Niger', 'Nigeria', 'Reunion', 'Rwanda', 'Sao Tome and Principe', 
+          'Senegal', 'Seychelles', 'Sierra Leone', 'Somalia', 'South Africa', 'Sudan', 'Tanzania', 'Togo', 
+          'Tunisia', 'Uganda', 'Zambia', 'Zimbabwe']
+
+america = ['Anguilla', 'Antigua and Barbuda', 'Argentina', 'Aruba', 'Bahamas', 'Barbados', 'Belize', 'Bolivia', 'Brazil', 
+           'British Virgin Islands', 'Canada', 'Cayman Islands', 'Chile', 'Colombia', 'Costa Rica', 'Cuba', 'Curacao', 
+           'Dominica', 'Dominican Republic', 'Ecuador', 'El Salvador', 'Islas Malvinas', 'French Guiana', 'Greenland', 
+           'Grenada', 'Guadeloupe', 'Guatemala', 'Guyana', 'Haiti', 'Honduras', 'Jamaica', 'Martinique', 'Mexico', 
+           'Montserrat', 'Nicaragua', 'Panama', 'Paraguay', 'Peru', 'Saint Kitts and Nevis', 'Saint Lucia', 
+           'Saint Vincent and the Grenadines', 'Suriname', 'Trinidad and Tobago', 'Turks and Caicos Islands', 
+           'United States', 'Uruguay', 'Venezuela']
+
+asia = ['Afghanistan', 'Armenia', 'Azerbaijan', 'Bahrain', 'Bangladesh', 'Bhutan', 'Cambodia', 'China', 
+        'Cyprus', 'Georgia', 'Hong Kong', 'India', 'Indonesia', 'Iran', 'Iraq', 'Israel', 'Japan', 'Jordan', 'Kazakhstan', 
+        'Kuwait', 'Kyrgyzstan', 'Laos', 'Lebanon', 'Macao', 'Malaysia', 'Mongolia', 'Myanmar', 'Nepal', 'North Korea', 
+        'Oman', 'Pakistan', 'Palestine', 'Philippines', 'Qatar', 'Saudi Arabia', 'Singapore', 'South Korea', 'Sri Lanka', 
+        'Syria', 'Taiwan', 'Tajikistan', 'Thailand', 'Timor Leste', 'Turkey', 'Turkmenistan', 'United Arab Emirates', 
+        'Uzbekistan', 'Vietnam', 'Yemen']
+
+europa = ['Albania', 'Andorra', 'Austria', 'Belarus', 'Belgium', 'Bosnia and Herzegovina', 'Bulgaria', 'Croatia', 
+          'Czech Republic', 'Denmark', 'Estonia', 'Faroe Islands', 'Finland', 'France', 'Germany', 'Greece', 
+          'Hungary', 'Iceland', 'Ireland', 'Italy', 'Latvia', 'Liechtenstein', 'Lithuania', 'Luxembourg', 'Macedonia', 
+          'Malta', 'Moldova', 'Montenegro', 'Netherlands', 'Norway', 'Poland', 'Portugal', 'Romania', 
+          'Russia', 'Serbia', 'Slovakia', 'Slovenia', 'Spain', 'Sweden', 'Switzerland', 'Ukraine', 'United Kingdom'] 
+
+oceania = ['Australia', 'Christmas Island', 'Fiji', 'French Polynesia', 'Kiribati', 'Micronesia', 'New Caledonia',
+           'New Zealand', 'Niue', 'Palau', 'Papua New Guinea', 'Samoa', 'Solomon Islands', 'Tonga']
+
+
+df_cflorestal_spark2 = (df_cflorestal_spark.withColumn('Continente', when(F.col('Pais').isin(europa), 'Europa')
+            .when(F.col('Pais').isin(asia), 'Ásia')
+            .when(F.col('Pais').isin(africa), 'África')
+            .when(F.col('Pais').isin(america), 'América')
+            .when(F.col('Pais').isin(oceania), 'Oceania'))
+
+)
+
+df_cflorestal_spark2.printSchema()
+
+df_cflorestal_spark2.show(5)
+
+df_cflorestal_spark2 = df_cflorestal_spark2.select('Continente', 'Pais', 'Codigo', 'AreaFlorestal_1990(1000ha)',\
+                                                   'AreaFlorestal_2000(1000ha)', 'AreaFlorestal_2010(1000ha)',\
+                                                   'AreaFlorestal_2015(1000ha)', 'AreaFlorestal_2020(1000ha)',\
+                                                   'Variacao_1990-2000', 'Variacao_1990-2010', 'Variacao_1990-2015',\
+                                                   'Variacao_1990-2020', 'Variacao_2000-2010', 'Variacao_2000-2015', \
+                                                   'Variacao_2000-2020', 'Variacao_2010-2015', 'Variacao_2010-2020',\
+                                                   'Variacao_2015-2020', 'VarPercentual_1990-2000', 'VarPercentual_1990-2010',\
+                                                   'VarPercentual_1990-2015', 'VarPercentual_1990-2020', 'VarPercentual_2000-2010',\
+                                                   'VarPercentual_2000-2015', 'VarPercentual_2000-2020', 'VarPercentual_2010-2015',\
+                                                   'VarPercentual_2010-2020', 'VarPercentual_2015-2020')                   
+
+df_cflorestal_spark2.show(70)
+
+def upload_blob(bucket_name, source_file_name, destination_blob_name):
+    """Uploads a file to the bucket."""
+    # The ID of your GCS bucket
+    # bucket_name = "your-bucket-name"
+    # The path to your file to upload
+    # source_file_name = "local/path/to/file"
+    # The ID of your GCS object
+    # destination_blob_name = "storage-object-name"
+
+    storage_client = storage.Client()
+    bucket = storage_client.bucket(bucket_name)
+    blob = bucket.blob(destination_blob_name)
+
+    blob.upload_from_filename(source_file_name)
+
+    print(
+        "File {} uploaded to {}.".format(
+            source_file_name, destination_blob_name
+        )
+    )
+
+from google.colab import drive
+drive.mount('/content/drive')
+
+df_cflorestal_spark2.write.format("csv") \
+.option("header", "true") \
+.option("inferschema", "true") \
+.option("delimiter", ",") \
+.save("/content/drive/MyDrive/DF_cobertura_florestal_pipeline")
+
+upload_blob("projeto-final-bucket-g5", "/content/drive/MyDrive/DF_cobertura_florestal_pipeline/df_cobertura_florestal_pipeline.csv.csv", "saida/df_cobertura_florestal_pipeline.csv")
