@@ -1,5 +1,6 @@
 # projeto-eng-dados-python-cloud
 Projeto Final da turma de Engenharia de Dados com Python e Google Cloud 
+
 Grupo 5 - Tema: Mudanças Climáticas
 
 - Limpeza, normalização, tratamento e modelagem de 3 datasets públicos pertinentes ao tema pré-estabelecido com uso das bibliotecas Pandas e Pandera, além de PySpark.
