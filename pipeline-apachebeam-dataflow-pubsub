@@ -1,0 +1,175 @@
+Este arquivo contém o passo a passo da elaboração do template da Pipeline, realizada com Apache Beam,
+com integração com as APIs de Dataflow e Pub/Sub da Google Cloud Platform e também utilizando arquivos previamente 
+salvos em um Bucket da Google Cloud Storage - tudo sob o mesmo projeto na nuvem da Google. 
+Tudo isto utilizado no Projeto Final de Engenharia de Dados c/ Python e Google Cloud da Soul Code Academy,
+feito e entregue pelo Grupo 5.
+
+pip install apache-beam[interactive]
+
+pip install apache-beam[gcp]
+
+pip install google-cloud-pubsub
+
+from google.cloud import storage
+
+def download_blob(bucket_name, source_blob_name, destination_file_name):
+    storage_client = storage.Client()
+    bucket = storage_client.bucket(bucket_name)
+    blob = bucket.blob(source_blob_name)
+    blob.download_to_filename(destination_file_name)
+
+    print(
+        "Downloaded storage object {} from bucket {} to local file {}.".format(
+            source_blob_name, bucket_name, destination_file_name
+        )
+    )
+
+from google.colab import drive
+drive.mount('/content/drive')
+
+import os
+from google.cloud import storage
+
+serviceAccount = '/content/chave_projetofinal-grupo5-d2c4a9d78233.json'
+os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = serviceAccount
+
+download_blob("projeto-final-bucket-g5", \
+              "saida/df_cobertura_florestal_pipeline.csv", \
+              "/content/drive/MyDrive/dados_soulcode/pipeline/df_cobertura_florestal_pipeline.csv")
+
+# Primeira etapa - upload dos arquivo baixados no drive para o tópico "topicov1",
+# criado no Pub/Sub, com assinatura "assinaturatp1" vinculada, para publicação 
+# dos dados recebidos.
+
+import csv        #importação do módulo módulo csv, perimitindo uso de classes 
+                  # para ler e gravar dados no formato .csv
+
+import time       #importação do módulo time, para utilização da função time.sleep,
+                  # a fim de proporcionar melhor visualização entre 
+                  # uma mensagem e a próxima
+
+from google.cloud import pubsub_v1  #importação do módulo pubsub_v1 da biblioteca
+                                    # google.cloud, para que utilizemos 
+                                    # as funcionalidades do Pub/Sub 
+                                    # no ambiente do Google Colaboratory
+
+import os  
+
+service_account_key = r"/content/chave_projetofinal-grupo5-d2c4a9d78233.json"
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = service_account_key
+
+topico = 'projects/projetofinal-grupo5/topics/topicov1'  #definição do caminho para  
+                                                         #publicação da leitura 
+                                                         # do arquivo dentro do Pub/Sub
+
+publisher = pubsub_v1.PublisherClient()                  # uso de função  de publicação
+                                                         # a ser utilizada do módulo  Pub/Sub 
+
+entrada = r"/content/drive/MyDrive/dados_soulcode/pipeline/df_cobertura_florestal_pipeline.csv" 
+
+                                                         #definição do caminho do arquivo a ser
+                                                         #enviado ao tópico Pub/Sub já definido    
+
+with open(entrada, 'rb') as file:                        #definição de função que mostra a evolução
+                                                         # da leitura do arquivo e subsequente publicação
+                                                         # e publicação das mensagens no tópico 
+    for row in file:
+        print('Publicando dados no tópico')
+        publisher.publish(topico,row)
+        time.sleep(2)
+
+import apache_beam as beam
+import os
+from apache_beam.options.pipeline_options import PipelineOptions #importação da função
+                                                                 #PipelineOptions para
+                                                                 #definição dos parâmetros
+                                                                 #para ordenação da 
+                                                                 #montagem do nosso template
+from apache_beam import window   #importação de função window, para definição de janelas de
+                                 #tempo realtivas a recorete/captura de dados, 
+                                 #essencial quandose trabalha com pipelines de dados em streaming
+
+pipeline_options = {
+    'project': 'projetofinal-grupo5',   #ID do Projeto
+    'runner': 'DataflowRunner',         #executor do Projeto
+    'region': 'southamerica-east1',     #região onde o projeto será executado
+    'staging_location': 'gs://projeto-final-bucket-g5/temp', 
+                         #staging é a área de preparação/
+                         #espaço de armazenamento necessário p/ execução do trabalho 
+    'temp_location': 'gs://projeto-final-bucket-g5/temp', #local de processamento temporário, 
+                                                          # arquivos apagadosdepois
+    'template_location': 'gs://projeto-final-bucket-g5/template/projeto_final_g5_TEMPLATE',
+                         #local onde o template será armazenado
+    'save_main_session': True, #declaração para que sessão seja salva
+    'streaming': True #declaração de que se trata de uma pipeline de streaming}
+
+
+pipeline_options = PipelineOptions.from_dictionary(pipeline_options)
+p1 = beam.Pipeline(options=pipeline_options)
+
+serviceAccount = '/content/chave_projetofinal-grupo5-d2c4a9d78233.json'
+os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = serviceAccount
+
+subscription = 'projects/projetofinal-grupo5/subscriptions/assinaturatp1'  
+  #definição do local de onde serão buscados os arquivos para inserção na pipeline, 
+  #quando o template dela for utlizado no Dataflow
+
+saida = 'projects/projetofinal-grupo5/topics/topicov2'
+  #definição de local onde os arquivos tratados pelos processos da Pipeline serão
+  #publicados após o tratamento
+
+class separar_linhas(beam.DoFn):
+  def process(self,record):
+    return [record.decode("utf-8").split(',')]
+
+pcollection_entrada = (
+    p1  | 'Read from pubsub topic' >> beam.io.ReadFromPubSub(subscription= subscription)
+)
+ #definição do arquivo a ser lido na pipeline construída
+
+Paises_Asia = (
+    pcollection_entrada
+    | "Separar por Vírgulas Países" >> beam.ParDo(separar_linhas())
+     #uso da função separadora de linhas 
+    | "Continente Ásia1" >> beam.Filter(lambda record: record[0] == 'Ásia')
+     #recorte, dentro do dataset, por Continente
+    | "Paises Ásia1" >> beam.Filter(lambda record: record[1])
+     #recorte, dentro do dataset, dos Países específicos dentro do Continente
+    | "Agregação de colunas1" >> beam.Map(lambda record : (record[0], record[1]))
+     #agregação das colunas Continente e País
+    | "Window1" >> beam.WindowInto(window.SlidingWindows(10,5))
+     #definição de parâmetros da janela  
+    | "Combinar os dados1" >> beam.GroupByKey()
+     #definição da forma de combinar os dados para posterior manipulação  
+)
+
+Variacao_Area_Florestal_1990_2010 = (
+    pcollection_entrada
+    | "Separar por Vírgulas Area Florestal" >> beam.ParDo(separar_linhas())
+     #uso da função separadora de linhas 
+    | "Continente Ásia2" >> beam.Filter(lambda record: record[0] == 'Ásia')
+     #recorte, dentro do dataset, por Continente
+    | "Variacao_Area_Florestal_1990_2010" >> beam.Filter(lambda record: float(record[9]))
+     #recorte, dentro do dataset, da Variaçao de Área Florestal 
+     # dentro de um período de tempo, dentro do Continente
+    | "Agregação de colunas2" >> beam.Map(lambda record : (record[0], float(record[9])))
+     #agregação das colunas Continente e Variaçao de Área Florestal 1990-2010 
+    | "Window2" >> beam.WindowInto(window.SlidingWindows(10,5))
+     #definição de parâmetros da janela  
+    | "Combinar os dados2" >> beam.GroupByKey()   
+     #definição da forma de combinar os dados para posterior manipulação   
+)
+
+Tabela_Asia_Var_CFlorestal_90_10 = (   
+    {'Paises_Asia' : Paises_Asia, 'Variacao_Area_Florestal_1990_2010': Variacao_Area_Florestal_1990_2010}  
+                                          #junção dos dadoo tratados nas outra etapa em uma Tabela Final
+    | "join Paises_Asia, Variacao_Area_Florestal_1990_2010" >> beam.CoGroupByKey() 
+                                          #definição de função pra junção
+    | 'Converting to byte String' >> beam.Map(lambda row: (''.join(str(row)).encode('utf-8')) )
+                                          #definição do formato de leitura do aquivo final
+    | "Escrever no Tópico" >> beam.io.WriteToPubSub(saida)
+                                          #definição do local de armazenamento da Tabela Final
+)
+
+result = p1.run()
+result.wait_until_finish()
