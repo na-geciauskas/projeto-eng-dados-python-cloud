@@ -1,0 +1,449 @@
+Este arquivo contém as consultas realizadas com sparkSQL relativasaos datasets já tratados e slavos no Bucket (Google Cloud Storage),
+utilizado no Projeto Final de Engenharia de Dados c/ Python e Google Cloud da Soul Code Academy
+feito e entregue pelo Grupo 5
+
+pip install pyspark
+
+pip install gcsfs
+
+import os
+from google.cloud import storage
+
+serviceAccount = '/content/chave_projetofinal-grupo5-d2c4a9d78233.json'
+
+os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = serviceAccount
+
+from pyspark.sql import SparkSession
+import pyspark.sql.functions as F
+from pyspark.sql.window import Window
+from pyspark.sql.functions import rank, dense_rank
+from pyspark.sql.types import StructType, StructField, StringType, IntegerType, DateType, FloatType
+
+from google.cloud import storage
+
+
+def download_blob(bucket_name, source_blob_name, destination_file_name):
+
+    storage_client = storage.Client()
+    bucket = storage_client.bucket(bucket_name)
+    blob = bucket.blob(source_blob_name)
+    blob.download_to_filename(destination_file_name)
+
+    print("Downloaded storage object {} from bucket {} to local file {}."
+         .format(source_blob_name, bucket_name, destination_file_name))
+
+
+from google.colab import drive
+drive.mount('/content/drive')
+
+download_blob("projeto-final-bucket-g5", "saida/df_temp_co2_final.csv", "/content/drive/MyDrive/dados_soulcode/df_temp_co2_final_sql.csv")
+
+download_blob("projeto-final-bucket-g5", "saida/df_cflorestal_pyspark_final.csv", "/content/drive/MyDrive/dados_soulcode/df_cflorestal_sql.csv")
+
+spark = (
+    SparkSession.builder
+      .master('local')
+      .appName('dataframe_temp_co2')
+      .config('spark.ui.port', '4050')
+      .getOrCreate()
+)
+
+df_temp_co2_final_sql = spark.read.format("csv") \
+                             .option("inferSchema", True) \
+                             .option("header", True) \
+                             .option("sep", ",") \
+                             .load("/content/drive/MyDrive/dados_soulcode/df_temp_co2_final_sql.csv")\
+                             .createOrReplaceTempView("temp_co2") 
+
+df_cflorestal_sql = spark.read.format("csv") \
+                             .option("inferSchema", True) \
+                             .option("header", True) \
+                             .option("sep", ",") \
+                             .load("/content/drive/MyDrive/dados_soulcode/df_cflorestal_sql.csv")\
+                             .createOrReplaceTempView("area_florestal") 
+
+#Query 1
+
+# esta query serve para dar um panorama geral dos dados tratados e consolidados dos 
+# dataframes trabalhados de emissões de CO2 e variações de temperatura dentro do período selecionado - 1900 a 2012
+
+spark.sql('''
+SELECT
+  *
+FROM
+  temp_co2
+''').show()
+
+#Query 2
+
+# esta query serve para visualizarmos quais os maiores emissores de CO2 dentro do período do nosso recorte - de 1900 a 2012
+# mostrando as emissões máximas de cada um neste histórico
+
+
+spark.sql('''
+SELECT 
+  Pais, 
+  Continente, 
+  Regiao, 
+  MAX(EmissaoCO2TonAno) AS maxEmissaoCO2TonAno
+FROM 
+  temp_co2
+GROUP BY 
+  Pais, 
+  Continente, 
+  Regiao
+ORDER BY 
+  maxEmissaoCO2TonAno DESC
+''').show()
+
+#Query 3
+
+# esta query mostra os valores máximos de temperatura média anual atingida em cada país dentro do recorte histórico de 1900 a 2012
+# permitindo que vejamos os países mais quentes/frios e poder vislumbrar quais seriam os impactos de uma variação de temperatura nestes locais
+
+spark.sql('''
+SELECT 
+  Pais, 
+  Continente, 
+  Regiao, 
+  MAX(TempMediaAno) AS maxTempMediaAno
+FROM 
+  temp_co2
+GROUP BY 
+  Pais, 
+  Continente, 
+  Regiao
+ORDER BY 
+  maxTempMediaAno DESC
+''').show()
+
+#Query 4
+
+# esta query permite uma análise, dentre os 5 continentes*, da contribuição de cada um para as emissões de CO2 a nível global
+# ordenados do maior responsável ao menor 
+# *esta divisão foi feita pelo grupo do Projeto 5 com base em dados da ONU
+
+spark.sql('''
+SELECT 
+  Continente, 
+  SUM(EmissaoCO2TonAno) AS emissaoContinente
+FROM 
+  temp_co2
+GROUP BY 
+  Continente
+ORDER BY 
+  emissaoContinente DESC
+''').show()
+
+#Query 5
+
+# esta query permite uma análise, dentre as 22 regiões do planeta*, da contribuição de cada uma para as emissões de CO2 a nível global
+# ordenados da principal região na contribuição das emissões de CO2 - América do Norte - à que menos contribuiu - Micronésia
+# é interessante notar, nesta tabela, os maiores e menores contribuintes em termos de emissões de CO2 -  
+# 1º - América do Norte, 2º - Ásia Leste, 3º - Europa Leste, 4º - Europa Oeste - todos na casa das centenas de bilhões de ton de Emissões de CO2 por Ano
+# 19º - África Centro, 20º - Melanesia, 21º - Polynesia, 22º - Micronésia - 
+# os dois primeiros apontados na casa das centenas de milhões e os dois últimos na casa das dezenas de milhões de ton de Emissões de CO2 por Ano
+
+# *esta divisão foi feita pelo grupo do Projeto 5 com base em dados da ONU
+
+spark.sql('''
+SELECT 
+  Regiao, 
+  SUM(EmissaoCO2TonAno) AS emissaoRegiao
+FROM 
+  temp_co2
+GROUP BY 
+  Regiao
+ORDER BY 
+  emissaoRegiao DESC
+''').show(25)
+
+#Query 6
+
+# esta tabela nos permite observar que, embora representem apenas um quarto (aproximadamente) do total de países listados do grupo analisado
+# os países Desenvolvidos ainda assim possuem mais do dobro de emissões de CO2 que os países Em desenvolvimento
+# e ainda contando com o fato de que a tendência histórica de variação de Emissão de CO2 
+# é quase o dobro nos países Em desenvolvimento quando comparada nos páises Desenvolvidos,
+# tudo isso dentro do período compreendido entre 1900 e 2012
+
+spark.sql('''
+SELECT 
+  NivelDesenvolvimento, 
+  COUNT(DISTINCT Pais) AS qtdPaises, 
+  SUM(EmissaoCO2TonAno) AS emissaoNivelDesenvolvimento, 
+  ROUND(SUM(DifEmissaoCO2TonAno),5) AS varEmissaoCO2 
+FROM 
+  temp_co2
+GROUP BY 
+  NivelDesenvolvimento
+ORDER BY 
+  EmissaoNivelDesenvolvimento DESC
+''').show()
+
+# Query 7
+
+# esta query nos permite observar os países e regiões em que houve maior variação de temperatura acumulada 
+# dentro do período observado, apresentando dados com valores bastante significativos
+# as cinco primeiras linhas retornam valores de  variação de temperatura acima de 2 ºC positivos em um período de 113 anos
+
+spark.sql('''
+SELECT 
+  Pais,
+  Continente,
+  Regiao, 
+  SUM(DifTempMediaAno) AS totalVarTempMedia
+FROM 
+  temp_co2
+GROUP BY 
+  Pais,
+  Continente,
+  Regiao
+ORDER BY 
+  totalVarTempMedia DESC
+''').show(200) 
+
+#Query 8
+
+# esta query permite que busquemos uma possível relação entre Emissão de CO2 e variação de temperatura média dos diferentes Países
+# dando atenção também à localização geográfica - Continente e Região
+# no período observado - 1900 a 2012
+
+spark.sql('''
+SELECT 
+  Pais, 
+  Continente, 
+  Regiao, 
+  SUM(EmissaoCO2TonAno) AS somaEmissaoCO2, 
+  ROUND(SUM(DifTempMediaAno),5) AS somaDifTempMedia
+FROM 
+  temp_co2
+GROUP BY 
+  Pais, 
+  Continente, 
+  Regiao
+ORDER BY 
+  somaEmissaoCO2 DESC
+''').show(15)
+
+#Query 9
+
+# esta query permite que busquemos uma relação entre Emissão de CO2 e variação de temperatura média dos diferentes Países
+# a partir da ótica das variações de temperaturas, trazendo novas possibilidades de insights
+# também dando atenção à localização geográfica - Continente e Região
+# no período observado - 1900 a 2012
+
+spark.sql('''
+SELECT 
+  Pais, 
+  Continente, 
+  Regiao, 
+  SUM(EmissaoCO2TonAno) AS somaEmissaoCO2, 
+  ROUND(SUM(DifTempMediaAno),5) AS somaDifTempMedia
+FROM 
+  temp_co2
+GROUP BY 
+  Pais, 
+  Continente, 
+  Regiao
+ORDER BY 
+  somaDifTempMedia DESC
+''').show(15)
+
+#Query 10
+
+# esta query apresenta uma análise do acumulado histórico das emissões de CO2 e variação total de temperatura
+# dentro do período considerado - 1900 a 2012, sendo que esta faixa de tempo é menor para alguns páises
+# devido a questões socio-políticas
+# justamente numa das regiões mais afetadas pelas mudanças climáticas - a Ásia Oeste/Oriente Médio
+
+spark.sql('''
+SELECT 
+  Pais, 
+  Regiao, 
+  ROUND(SUM(DifTempMediaAno),5) AS somaDifTempMedia, 
+  ROUND(SUM(EmissaoCO2TonAno),5) AS somaEmissaoCO2
+FROM 
+  temp_co2
+GROUP BY 
+  Pais, 
+  Regiao
+HAVING 
+  Regiao = 'Ásia Oeste'
+ORDER BY 
+  somaDifTempMedia DESC
+''').show(20)
+
+#Query 11 (BR)
+
+# esta query mostra as Emissões de CO2 e variações de temperatura ano a ano para o caso específico do Brasil
+# é possível observar que não há correlação direta, no caso brasileiro, entre esses dois fatores analisados
+# pois o país apresenta uma taxa cada vez mais elevada de emissões e uma variação muito pequena de temperatura
+# é notável também que o crescimento no valor de emissões se dá quase que linearmente com a passagem dos anos,
+# aumentando progressivamente 
+
+spark.sql('''
+SELECT 
+  Pais, 
+  Ano, 
+  ROUND(DifTempMediaAno, 8) AS varTempMediaAno, 
+  EmissaoCO2TonAno
+FROM 
+  temp_co2
+WHERE 
+  Pais = 'Brazil'
+ORDER BY 
+  EmissaoCO2TonAno DESC
+''').show(25)
+
+#Criação de Tabela brasil_1990_2010 no BigQuery
+
+# esta tabela fornece um recorte específico de país - Brasil - e período de tempo - 1990 a 2010
+# para que possamos fazer análises cruzadas com os dados sobre área de cobertura florestal
+
+'''
+CREATE OR REPLACE TABLE
+  brasil_1990_2010 AS (
+  SELECT
+    Pais,
+    Ano,
+    ROUND(DifTempMediaAno, 8) AS varTempMediaAno,
+    EmissaoCO2TonAno
+  FROM
+    temp_co2
+  WHERE
+    Pais = 'Brazil'
+    AND Ano > 1989
+    AND Ano < 2011
+  ORDER BY
+    EmissaoCO2TonAno DESC )
+'''
+
+#Query 12
+
+# esta query nos permite observar, por meio da combinação de dados da tabela com recorte específico para o Brasil entre 1990 e 2010
+# e a tabela de cobertura florestal no mundo entre 1990 e 2010, um aumento significativo na temperatura média do período considerado
+# somado a uma crescente no total de Emissões de CO2  - atingindo o volume aproximado de 6 bilhões de toneladas em emissões - em um
+# período em que perdemos o equivalente à área aproximada do Estado do Rio de Janeiro em cobertura florestal
+# o que aponta para uma possível correlação entre os três tipos de dados considerados nessa análise:
+# Variação de Temperatura Média, Total de Emissões de CO2 e Área de Cobertura Florestal
+
+'''
+SELECT
+  a.Pais,
+  SUM(varTempMediaAno) AS VarTotalTempMedia,
+  SUM(EmissaoCO2TonAno) AS TotalEmissoesCO2,
+  b.AreaFlorestal_1990_1000ha_,
+  b.AreaFlorestal_2010_1000ha_,
+  b.Variacao_1990_2010,
+  b.VarPercentual_1990_2010
+FROM
+  `projetofinal-grupo5.mudancas_climaticas.brasil_1990_2010` AS a
+INNER JOIN
+  `projetofinal-grupo5.mudancas_climaticas.area-florestal` AS b
+ON
+  a.Pais = b.Pais
+GROUP BY
+  a.Pais,
+  b.AreaFlorestal_1990_1000ha_,
+  b.AreaFlorestal_2010_1000ha_,
+  b.Variacao_1990_2010,
+  b.VarPercentual_1990_2010
+'''
+
+
+#Criação de Tabela oriente_medio_1990_2010 no BigQuery
+
+# esta tabela fornece um recorte específico de Região - ÁsiaOeste/Oriente Médio - e período de tempo - 1990 a 2010
+# para que possamos fazer análises cruzadas com os dados sobre área de cobertura florestal
+
+'''
+CREATE OR REPLACE TABLE
+  mudancas_climaticas.oriente_medio_1990_2010 AS (
+  SELECT
+    Pais,
+    Regiao,
+    ROUND(SUM(DifTempMediaAno),5) AS VarTotalTempMedia,
+    ROUND(SUM(EmissaoCO2TonAno),5) AS SomaEmissaoCO2
+  FROM
+    `projetofinal-grupo5.mudancas_climaticas.temp_co2`
+  WHERE
+    Regiao = 'Ásia Oeste'
+    AND Ano >= 1990
+    AND Ano <= 2010
+  GROUP BY
+    Pais,
+    Regiao
+  ORDER BY
+    SomaEmissaoCO2 DESC
+  LIMIT
+    50 )
+'''
+
+#Query 13
+
+# esta query, que combina dados da tabela específica sobre Ásia Oeste/Oriente Médio no período de 1990 a 2010, 
+# com dados da tabela sobre cobertura florestal no mundo entre 1990 e 2010, mostra uma possível forte correlação
+# entre a falta de cobertura florestal e altos níveis de emissão de CO2 com a variação sensível de temperatura
+# nesta região do planeta
+
+spark.sql('''
+SELECT 
+  a.*,
+  b.AreaFlorestal_1990_1000ha_,
+  b.AreaFlorestal_2010_1000ha_,
+  b.Variacao_1990_2010,
+  b.VarPercentual_1990_2010
+FROM 
+  `projetofinal-grupo5.mudancas_climaticas.oriente_medio_1990_2010` AS a
+INNER JOIN
+  `projetofinal-grupo5.mudancas_climaticas.area-florestal` AS b
+ON
+  a.Pais = b.Pais
+''').show()
+
+#Query 14 (BR)
+
+# esta query mostra os valores mínimos e máximos de emissão de CO2 ton/ano 
+# atingidas pelo Brasil dentro do recorte histórico de 1900 a 2012,
+#que coincidem com os anos de 1900 e 2012, demonstrando uma tendência de crescente neste sentido
+#desde o começo do perído analisado
+
+spark.sql('''
+SELECT 
+  Pais, 
+  Continente, 
+  Regiao, 
+  MIN(EmissaoCO2TonAno) AS minEmissaoCO2, 
+  MAX(EmissaoCO2TonAno) AS maxEmissaoCO2
+FROM 
+  temp_co2
+GROUP BY 
+  Pais, 
+  Continente, 
+  Regiao
+HAVING 
+  Pais = 'Brazil'
+''').show()
+
+#Query 15
+
+# esta query mostra o total das variações de temperatura média na região da América do Norte
+# dentro de todo o período analisado - 1900 a 2012
+# desta tabela resultante podemos aferir que, quanto mais ao norte se localiza o país, maiores foram as variação de temperatura 
+# no período considerado
+
+spark.sql('''
+SELECT 
+  Pais, 
+  Regiao, 
+  SUM(DifTempMediaAno) AS totalDifTempMedia
+FROM 
+  temp_co2
+GROUP BY 
+  Pais, 
+  Regiao
+HAVING
+  Regiao = 'América do Norte'
+ORDER BY 
+  totalDifTempMedia DESC
+''').show()
